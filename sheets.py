@@ -3,15 +3,16 @@ import csv
 import io
 import json
 from datetime import datetime
-from products import get_duracion
 
 SHEET_ID = "1Cg1SBYIq2kiPYI-D8mKKlvt1dLC8Zz045jIWpK3Ho0k"
 BASE_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyR_tjw8Gl4dMGhoGbUGPy_k0LKCcs0FJHlxfE2vNcDJED3LWhAeVYGDOQ_trR58Nyj/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxfoPaC6rB2fQCaZWERSI9ucaIlX6JpbWNU_UBX_hGnoFdkqysKCCMgcy3XzLsspMdt/exec"
 
 
 # =============================
 # 📦 CATALOGO
+# Estructura: A=CODIGO | B=PRODUCTO | C=PRECIO | D=ESTADO
+# Fila 1: Título, Fila 2: Subtítulo, Fila 3: vacía, Fila 4: Encabezados, Fila 5+: Datos
 # =============================
 async def get_catalogo() -> str:
     url = BASE_URL + "&sheet=Catalogo"
@@ -25,27 +26,25 @@ async def get_catalogo() -> str:
     productos = []
 
     for row in rows:
-        # Saltar filas con menos de 10 columnas
-        if len(row) < 10:
+        if len(row) < 4:
             continue
-        # La columna A (índice 0) debe empezar con R
-        if not str(row[0]).strip().startswith("R"):
+        codigo = str(row[0]).strip()
+        # Saltar filas que no son productos
+        if not codigo or codigo.upper() in ("CODIGO", "CATÁLOGO", "CATALOGO"):
             continue
-        # ✅ FIX: Estado está en índice 9 (columna J), no 10
-        if row[9].strip().lower() != "activo":
+        # Estado en columna D (índice 3)
+        estado = str(row[3]).strip().lower()
+        if estado != "activo":
             continue
 
-        precio_raw = row[6].replace("$", "").replace(".", "").replace(",", "").strip()
-
+        precio_raw = str(row[2]).replace("$", "").replace(".", "").replace(",", "").strip()
         try:
             precio_fmt = "${:,}".format(int(precio_raw)).replace(",", ".")
         except:
-            precio_fmt = row[6]
+            precio_fmt = row[2]
 
         productos.append(
-            f"- {row[2]} | Pres: {row[3]} | Marca: {row[4]} | "
-            f"Sabor: {row[5]} | Precio: {precio_fmt} | "
-            f"Stock: {row[7]} uds | Ref: {row[8]}"
+            f"- {row[1].strip()} | Código: {codigo} | Precio: {precio_fmt}"
         )
 
     if not productos:
@@ -57,37 +56,42 @@ async def get_catalogo() -> str:
 
 # =============================
 # 🧾 REGISTRAR PEDIDO
+# Estructura Pedidos:
+# A=# Pedido | B=Fecha | C=Hora | D=Telefono | E=Nombre | F=No Identificacion
+# G=Producto | H=Direccion | I=Barrio | J=Ciudad | K=Cantidad | L=Precio Unit
+# M=Total | N=Estado | O=followup_dia3 | P=followup_final
 # =============================
 async def registrar_pedido(
     telefono: str,
     nombre: str,
-    referencia: str,
+    identificacion: str,
+    codigo: str,
     producto: str,
-    presentacion: str,
-    marca: str,
-    sabor: str,
     cantidad: int,
     precio: int,
-    ubicacion: str,
+    direccion: str,
+    barrio: str,
+    ciudad: str,
 ) -> bool:
 
     try:
         now = datetime.now()
+        total = cantidad * precio
 
         data = {
-            "telefono": telefono,
-            "nombre": nombre,
-            "referencia": referencia,
-            "producto": producto,
-            "presentacion": presentacion,
-            "marca": marca,
-            "sabor": sabor,
-            "cantidad": cantidad,
-            "precio": precio,
-            "ubicacion": ubicacion,
-            "fecha": now.strftime("%Y-%m-%d"),
-            "hora": now.strftime("%H:%M:%S"),
-            "dias_duracion": get_duracion(producto),
+            "telefono":       telefono,
+            "nombre":         nombre,
+            "identificacion": identificacion,
+            "codigo":         codigo,
+            "producto":       producto,
+            "cantidad":       cantidad,
+            "precio":         precio,
+            "total":          total,
+            "direccion":      direccion,
+            "barrio":         barrio,
+            "ciudad":         ciudad,
+            "fecha":          now.strftime("%Y-%m-%d"),
+            "hora":           now.strftime("%H:%M:%S"),
         }
 
         async with httpx.AsyncClient() as client:
@@ -100,7 +104,6 @@ async def registrar_pedido(
             )
 
         print(f"[PEDIDO RAW] {response.status_code} - {response.text[:100]}")
-
         result = response.json()
 
         if result.get("status") == "ok":
@@ -130,23 +133,17 @@ async def get_pedidos() -> list:
     pedidos = []
 
     for row in rows:
-        if len(row) < 18 or row[0] == "# Pedido":
+        if len(row) < 14 or row[0] in ("# Pedido", ""):
             continue
 
-        producto = row[7].strip()
-
-        pedidos.append(
-            {
-                "telefono": row[3].strip(),
-                "nombre": row[4].strip(),
-                "producto": producto,
-                "fecha": f"{row[1]}T{row[2]}",
-                "dias_duracion": get_duracion(producto),
-                "f3": row[15].strip(),
-                "f_final": row[16].strip(),
-                "f_extra": row[17].strip(),
-            }
-        )
+        pedidos.append({
+            "telefono": row[3].strip(),
+            "nombre":   row[4].strip(),
+            "producto": row[6].strip(),
+            "fecha":    f"{row[1]}T{row[2]}",
+            "f3":       row[14].strip() if len(row) > 14 else "",
+            "f_final":  row[15].strip() if len(row) > 15 else "",
+        })
 
     print(f"[PEDIDOS OK] {len(pedidos)} pedidos")
     return pedidos
