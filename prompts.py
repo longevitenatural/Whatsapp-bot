@@ -52,7 +52,7 @@ def get_system_prompt(empresa: str, catalogo: str = "") -> str:
         "- Cuando el cliente exprese intención de compra, deja de vender y empieza a cerrar.\n\n"
 
         "PROCESO DE PEDIDO (OBLIGATORIO):\n"
-        "1. Solo iniciar cuando el cliente tenga intención de compra.\n"
+        "1. Solo iniciar cuando el cliente tenga intención de compra\n"
         "2. Pedir TODOS estos datos uno a uno de forma conversacional:\n"
         "   - Nombre completo\n"
         "   - Número de identificación (cédula)\n"
