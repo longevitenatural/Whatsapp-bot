@@ -14,10 +14,12 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyO4jTpGEVEyu8GsDW4QK
 # 📦 CATALOGO
 # =============================
 async def get_catalogo() -> str:
-    url = BASE_URL + "&sheet=Catalogo"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Catalogo"
 
     async with httpx.AsyncClient() as client:
         response = await client.get(url, timeout=10)
+
+    print("[SHEET RAW]", response.text[:500])  # <-- para ver qué llega exactamente
 
     reader = csv.reader(io.StringIO(response.text))
     rows = list(reader)
@@ -25,10 +27,13 @@ async def get_catalogo() -> str:
     productos = []
 
     for row in rows:
+        # Saltar filas con menos de 11 columnas
         if len(row) < 11:
             continue
-        if not row[0].startswith("R"):
+        # La columna A (índice 0) debe empezar con R
+        if not str(row[0]).strip().startswith("R"):
             continue
+        # La columna K (índice 10) debe ser "activo"
         if row[10].strip().lower() != "activo":
             continue
 
@@ -48,7 +53,7 @@ async def get_catalogo() -> str:
     if not productos:
         return "No hay productos disponibles en este momento."
 
-    print(f"[CATALOGO OK] {len(productos)} productos")
+    print(f"[CATALOGO OK] {len(productos)} productos cargados")
     return "\n".join(productos)
 
 
