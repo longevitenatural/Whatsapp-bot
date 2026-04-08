@@ -6,7 +6,7 @@ from datetime import datetime
 from products import get_duracion
 
 SHEET_ID = "1Cg1SBYIq2kiPYI-D8mKKlvt1dLC8Zz045jIWpK3Ho0k"
-BASE_URL = "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv"
+BASE_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyO4jTpGEVEyu8GsDW4QK-3NjD9B1_4oPblg_58RsQr8PCuE6j2In9PYdEqMbMALRMa/exec"
 
 
