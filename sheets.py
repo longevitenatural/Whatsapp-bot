@@ -7,19 +7,17 @@ from products import get_duracion
 
 SHEET_ID = "1Cg1SBYIq2kiPYI-D8mKKlvt1dLC8Zz045jIWpK3Ho0k"
 BASE_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyO4jTpGEVEyu8GsDW4QK-3NjD9B1_4oPblg_58RsQr8PCuE6j2In9PYdEqMbMALRMa/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyR_tjw8Gl4dMGhoGbUGPy_k0LKCcs0FJHlxfE2vNcDJED3LWhAeVYGDOQ_trR58Nyj/exec"
 
 
 # =============================
 # 📦 CATALOGO
 # =============================
 async def get_catalogo() -> str:
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Catalogo"
+    url = BASE_URL + "&sheet=Catalogo"
 
     async with httpx.AsyncClient() as client:
         response = await client.get(url, timeout=10)
-
-    print("[SHEET RAW]", response.text[:500])  # <-- para ver qué llega exactamente
 
     reader = csv.reader(io.StringIO(response.text))
     rows = list(reader)
@@ -27,14 +25,14 @@ async def get_catalogo() -> str:
     productos = []
 
     for row in rows:
-        # Saltar filas con menos de 11 columnas
-        if len(row) < 11:
+        # Saltar filas con menos de 10 columnas
+        if len(row) < 10:
             continue
         # La columna A (índice 0) debe empezar con R
         if not str(row[0]).strip().startswith("R"):
             continue
-        # La columna K (índice 10) debe ser "activo"
-        if row[10].strip().lower() != "activo":
+        # ✅ FIX: Estado está en índice 9 (columna J), no 10
+        if row[9].strip().lower() != "activo":
             continue
 
         precio_raw = row[6].replace("$", "").replace(".", "").replace(",", "").strip()
@@ -97,7 +95,7 @@ async def registrar_pedido(
                 APPS_SCRIPT_URL,
                 content=json.dumps(data),
                 headers={"Content-Type": "application/json"},
-                follow_redirects=True,  # 🔥 FIX CLAVE
+                follow_redirects=True,
                 timeout=15.0,
             )
 
