@@ -5,9 +5,9 @@ import json
 from datetime import datetime
 from products import get_duracion
 
-SHEET_ID = "1N3xGYFlSsKrUFV6JtrkeBQ_Acc-9ypXlNc9H74qT7N8"
+SHEET_ID = "1Cg1SBYIq2kiPYI-D8mKKlvt1dLC8Zz045jIWpK3Ho0k"
 BASE_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxQwuyPUIcy7cUu9pFmjbvlQLBYdt6s7NHbGHNeBFmikPdZRSw53rRtzESNVNWO9kDb/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyR_tjw8Gl4dMGhoGbUGPy_k0LKCcs0FJHlxfE2vNcDJED3LWhAeVYGDOQ_trR58Nyj/exec"
 
 
 # =============================
