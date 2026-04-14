@@ -11,8 +11,8 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxfoPaC6rB2fQCaZWERSI
 
 # =============================
 # 📦 CATALOGO
-# Estructura: A=CODIGO | B=PRODUCTO | C=PRECIO | D=ESTADO
-# Fila 1: Título, Fila 2: Subtítulo, Fila 3: vacía, Fila 4: Encabezados, Fila 5+: Datos
+# Estructura real en Sheets:
+# A=CODIGO | B=PRODUCTO | C=DESCRIPCIÓN | D=PRECIO | E=ESTADO
 # =============================
 async def get_catalogo() -> str:
     url = BASE_URL + "&sheet=Catalogo"
@@ -26,26 +26,36 @@ async def get_catalogo() -> str:
     productos = []
 
     for row in rows:
-        if len(row) < 4:
+        if len(row) < 5:
             continue
-        codigo = str(row[0]).strip()
-        # Saltar filas que no son productos
+
+        codigo      = str(row[0]).strip()
+        producto    = str(row[1]).strip()
+        descripcion = str(row[2]).strip()
+        precio_raw  = str(row[3]).strip()
+        estado      = str(row[4]).strip().lower()
+
+        # Saltar encabezados y filas vacías
         if not codigo or codigo.upper() in ("CODIGO", "CATÁLOGO", "CATALOGO"):
             continue
-        # Estado en columna D (índice 3)
-        estado = str(row[3]).strip().lower()
+
+        # Solo productos activos
         if estado != "activo":
             continue
 
-        precio_raw = str(row[2]).replace("$", "").replace(".", "").replace(",", "").strip()
+        # Formatear precio
         try:
-            precio_fmt = "${:,}".format(int(precio_raw)).replace(",", ".")
-        except:
-            precio_fmt = row[2]
+            precio_num = int(precio_raw.replace("$", "").replace(".", "").replace(",", "").strip())
+            precio_fmt = "${:,}".format(precio_num).replace(",", ".")
+        except Exception:
+            precio_fmt = precio_raw
 
-        productos.append(
-            f"- {row[1].strip()} | Código: {codigo} | Precio: {precio_fmt}"
-        )
+        # Construir línea del catálogo
+        linea = f"- {producto} | Código: {codigo} | Precio: {precio_fmt}"
+        if descripcion:
+            linea += f" | Descripción: {descripcion}"
+
+        productos.append(linea)
 
     if not productos:
         return "No hay productos disponibles en este momento."
@@ -56,10 +66,6 @@ async def get_catalogo() -> str:
 
 # =============================
 # 🧾 REGISTRAR PEDIDO
-# Estructura Pedidos:
-# A=# Pedido | B=Fecha | C=Hora | D=Telefono | E=Nombre | F=No Identificacion
-# G=Producto | H=Direccion | I=Barrio | J=Ciudad | K=Cantidad | L=Precio Unit
-# M=Total | N=Estado | O=followup_dia3 | P=followup_final
 # =============================
 async def registrar_pedido(
     telefono: str,

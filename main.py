@@ -3,6 +3,7 @@ from fastapi.responses import PlainTextResponse
 from twilio.rest import Client
 import uvicorn
 import re
+import time
 
 from config import config
 from database import get_history, save_messages, is_human_mode, set_human_mode, clear_history, is_new_session
@@ -16,6 +17,27 @@ app.include_router(followup_router)
 twilio_client = Client(config.TWILIO_SID, config.TWILIO_TOKEN)
 
 VENDEDOR = "whatsapp:+573102897401"  # Número del asesor principal
+
+# ── Cache anti-duplicados ──────────────────────────────────────────────────────
+# Guarda (phone, texto_del_mensaje) → timestamp de la última vez que se procesó
+# Si llega el mismo mensaje del mismo número en menos de 30 segundos, se ignora.
+_processed_messages: dict = {}
+DEDUP_WINDOW_SECONDS = 30
+
+
+def _is_duplicate(phone: str, text: str) -> bool:
+    key = phone + "|" + text
+    now = time.time()
+    last = _processed_messages.get(key)
+    if last and (now - last) < DEDUP_WINDOW_SECONDS:
+        return True
+    _processed_messages[key] = now
+    # Limpiar entradas viejas para no crecer infinito
+    cutoff = now - DEDUP_WINDOW_SECONDS * 2
+    for k in list(_processed_messages.keys()):
+        if _processed_messages[k] < cutoff:
+            del _processed_messages[k]
+    return False
 
 
 def send_whatsapp(to: str, body: str):
@@ -84,6 +106,11 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
     phone = From
     text  = Body.strip()
     print("[MSG] " + phone + ": " + text)
+
+    # ── Anti-duplicados: ignorar si el mismo mensaje llega dos veces en 30s ───
+    if _is_duplicate(phone, text):
+        print("[DUPLICADO] Ignorado: " + phone + " — " + text[:50])
+        return PlainTextResponse("", status_code=200)
 
     # ── Comandos del vendedor ──────────────────────────────────────
     if text.startswith("/bot-on"):
@@ -154,6 +181,10 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
                       "Cuando termines escribe:\n"
                       "/bot-on " + phone.replace("whatsapp:", ""))
             send_whatsapp(VENDEDOR, alerta)
+            save_messages(phone, text, reply)
+            send_whatsapp(phone, reply)
+            print("[OK] Transferido a humano: " + phone)
+            return PlainTextResponse("", status_code=200)
 
         # Pedido detectado
         elif "PEDIDO_CONFIRMAR" in reply:
@@ -166,39 +197,48 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
                           "Número: " + phone.replace("whatsapp:", "") + "\n"
                           "El bot no pudo parsear el pedido correctamente.")
                 send_whatsapp(VENDEDOR, alerta)
+                save_messages(phone, text, reply)
+                send_whatsapp(phone, reply)
+                return PlainTextResponse("", status_code=200)
+
+            total = pedido["cantidad"] * pedido["precio"]
+
+            ok = await registrar_pedido(
+                phone,
+                pedido["nombre"],
+                pedido["identificacion"],
+                pedido["codigo"],
+                pedido["producto"],
+                pedido["cantidad"],
+                pedido["precio"],
+                pedido["direccion"],
+                pedido["barrio"],
+                pedido["ciudad"],
+            )
+
+            if ok:
+                reply = ("✅ Pedido registrado exitosamente.\n\n"
+                         "Producto: "   + pedido["producto"]   + "\n"
+                         "Cantidad: "   + str(pedido["cantidad"]) + "\n"
+                         "Dirección: "  + pedido["direccion"]  + "\n"
+                         "Barrio: "     + pedido["barrio"]     + "\n"
+                         "Ciudad: "     + pedido["ciudad"]     + "\n"
+                         "Total: $"     + "{:,}".format(total).replace(",", ".") + "\n\n"
+                         "Un asesor te enviará los datos de pago pronto. 🌿")
             else:
-                total = pedido["cantidad"] * pedido["precio"]
+                reply = "Hubo un problema registrando tu pedido. Un asesor te ayudará pronto."
+                alerta = ("⚠️ PEDIDO FALLIDO — ERROR EN SHEETS\n"
+                          "Número: " + phone.replace("whatsapp:", "") + "\n"
+                          "Cliente: " + pedido["nombre"] + "\n"
+                          "Producto: " + pedido["producto"])
+                send_whatsapp(VENDEDOR, alerta)
 
-                ok = await registrar_pedido(
-                    phone,
-                    pedido["nombre"],
-                    pedido["identificacion"],
-                    pedido["codigo"],
-                    pedido["producto"],
-                    pedido["cantidad"],
-                    pedido["precio"],
-                    pedido["direccion"],
-                    pedido["barrio"],
-                    pedido["ciudad"],
-                )
+            save_messages(phone, text, reply)
+            send_whatsapp(phone, reply)
+            print("[OK] Pedido procesado para " + phone)
+            return PlainTextResponse("", status_code=200)
 
-                if ok:
-                    reply = ("✅ Pedido registrado exitosamente.\n\n"
-                             "Producto: "   + pedido["producto"]   + "\n"
-                             "Cantidad: "   + str(pedido["cantidad"]) + "\n"
-                             "Dirección: "  + pedido["direccion"]  + "\n"
-                             "Barrio: "     + pedido["barrio"]     + "\n"
-                             "Ciudad: "     + pedido["ciudad"]     + "\n"
-                             "Total: $"     + "{:,}".format(total).replace(",", ".") + "\n\n"
-                             "Un asesor te enviará los datos de pago pronto. 🌿")
-                else:
-                    reply = "Hubo un problema registrando tu pedido. Un asesor te ayudará pronto."
-                    alerta = ("⚠️ PEDIDO FALLIDO — ERROR EN SHEETS\n"
-                              "Número: " + phone.replace("whatsapp:", "") + "\n"
-                              "Cliente: " + pedido["nombre"] + "\n"
-                              "Producto: " + pedido["producto"])
-                    send_whatsapp(VENDEDOR, alerta)
-
+        # Respuesta normal
         save_messages(phone, text, reply)
         send_whatsapp(phone, reply)
         print("[OK] Respuesta enviada a " + phone)

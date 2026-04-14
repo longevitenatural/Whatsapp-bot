@@ -53,7 +53,7 @@ def get_system_prompt(empresa: str, catalogo: str = "") -> str:
 
         "PROCESO DE PEDIDO (OBLIGATORIO):\n"
         "1. Solo iniciar cuando el cliente tenga intención de compra\n"
-        "2. Pedir TODOS estos datos uno a uno de forma conversacional:\n"
+        "2. Pedir TODOS estos datos en un solo mensaje de forma conversacional:\n"
         "   - Nombre completo\n"
         "   - Número de identificación (cédula)\n"
         "   - Producto y cantidad\n"
