@@ -18,8 +18,6 @@ twilio_client = Client(config.TWILIO_SID, config.TWILIO_TOKEN)
 
 VENDEDOR = "whatsapp:+573143249930"  # Número del asesor principal
 
-#/bot-on +573143249930
-
 # ── Cache anti-duplicados ──────────────────────────────────────────────────────
 _processed_messages: dict = {}
 DEDUP_WINDOW_SECONDS = 30
@@ -53,7 +51,8 @@ def send_whatsapp(to: str, body: str):
 CAMPAIGN_PHRASES = [
     "quiero comprar el kit regalo saludable",
     "quiero comprar el kit saludable",
-    ]
+    
+]
 
 
 def is_campaign_message(text: str) -> bool:
@@ -179,13 +178,10 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
         send_whatsapp(VENDEDOR, alerta)
         return PlainTextResponse("", status_code=200)
 
-    # ── Campaña publicitaria → transferir directo al asesor ────────
+    # ── Campaña publicitaria → alertar asesor sin responder al cliente ────
     if is_campaign_message(text):
         print("[CAMPAÑA] Mensaje de campaña detectado para " + phone)
         set_human_mode(phone, True)
-        reply = "¡Hola! Bienvenido/a a Longevité 🌿 Un asesor te atenderá en un momento."
-        send_whatsapp(phone, reply)
-        save_messages(phone, text, reply)
         alerta = ("🎯 CLIENTE DE CAMPAÑA\n"
                   "Número: " + phone.replace("whatsapp:", "") + "\n"
                   "Mensaje: " + text + "\n\n"
