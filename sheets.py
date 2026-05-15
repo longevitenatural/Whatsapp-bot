@@ -6,7 +6,7 @@ from datetime import datetime
 
 SHEET_ID = "1Cg1SBYIq2kiPYI-D8mKKlvt1dLC8Zz045jIWpK3Ho0k"
 BASE_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxfoPaC6rB2fQCaZWERSI9ucaIlX6JpbWNU_UBX_hGnoFdkqysKCCMgcy3XzLsspMdt/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx6LoJAEOOAaGFFNj9y8b9PQZ-vhVDCI1NbAZpLGrZtkBRgdo8UFbD3iJ4k4GL8G49w/exec"
 
 
 # =============================
