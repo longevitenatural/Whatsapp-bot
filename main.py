@@ -50,7 +50,7 @@ def send_whatsapp(to: str, body: str):
 # se notifica al asesor y se activa modo humano sin pasar por la IA.
 CAMPAIGN_PHRASES = [
     "quiero comprar el kit regalo saludable",
-    "quiero comprar el kit saludable",
+    "quiero comprar el kit saludable"
     
 ]
 
@@ -178,10 +178,14 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
         send_whatsapp(VENDEDOR, alerta)
         return PlainTextResponse("", status_code=200)
 
-    # ── Campaña publicitaria → alertar asesor sin responder al cliente ────
+    # ── Campaña publicitaria → respuesta fija + alertar asesor ────
     if is_campaign_message(text):
         print("[CAMPAÑA] Mensaje de campaña detectado para " + phone)
         set_human_mode(phone, True)
+        reply = ("¡Hola! Te habla Nancy Molano asesora comercial de Longévité, "
+                 "Alimentación Saludable. Gracias por contactarnos 💙")
+        send_whatsapp(phone, reply)
+        save_messages(phone, text, reply)
         alerta = ("🎯 CLIENTE DE CAMPAÑA\n"
                   "Número: " + phone.replace("whatsapp:", "") + "\n"
                   "Mensaje: " + text + "\n\n"
