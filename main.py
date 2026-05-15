@@ -16,11 +16,11 @@ app.include_router(followup_router)
 
 twilio_client = Client(config.TWILIO_SID, config.TWILIO_TOKEN)
 
-VENDEDOR = "whatsapp:+573102897401"  # Número del asesor principal
+VENDEDOR = "whatsapp:+573143249930"  # Número del asesor principal
+
+#/bot-on +573143249930
 
 # ── Cache anti-duplicados ──────────────────────────────────────────────────────
-# Guarda (phone, texto_del_mensaje) → timestamp de la última vez que se procesó
-# Si llega el mismo mensaje del mismo número en menos de 30 segundos, se ignora.
 _processed_messages: dict = {}
 DEDUP_WINDOW_SECONDS = 30
 
@@ -32,7 +32,6 @@ def _is_duplicate(phone: str, text: str) -> bool:
     if last and (now - last) < DEDUP_WINDOW_SECONDS:
         return True
     _processed_messages[key] = now
-    # Limpiar entradas viejas para no crecer infinito
     cutoff = now - DEDUP_WINDOW_SECONDS * 2
     for k in list(_processed_messages.keys()):
         if _processed_messages[k] < cutoff:
@@ -48,11 +47,25 @@ def send_whatsapp(to: str, body: str):
     )
 
 
+# ── Frases de campaña → transferir directo al asesor ──────────────────────────
+# Cuando el cliente llega con estas frases (desde anuncios de Facebook/Instagram)
+# se notifica al asesor y se activa modo humano sin pasar por la IA.
+CAMPAIGN_PHRASES = [
+    "quiero comprar el kit regalo saludable",
+    "quiero comprar el kit saludable",
+    ]
+
+
+def is_campaign_message(text: str) -> bool:
+    """Detecta si el mensaje viene de una campaña publicitaria."""
+    text_lower = text.lower()
+    return any(phrase in text_lower for phrase in CAMPAIGN_PHRASES)
+
+
 def parse_pedido(reply: str):
     """
     Busca y parsea la línea PEDIDO_CONFIRMAR en la respuesta del bot.
     Formato: PEDIDO_CONFIRMAR|nombre|identificacion|codigo|producto|cantidad|precio|direccion|barrio|ciudad
-    Retorna un dict con los campos o None si no se puede parsear.
     """
     for linea in reply.split("\n"):
         linea = linea.strip()
@@ -61,7 +74,6 @@ def parse_pedido(reply: str):
 
         print("[PEDIDO LINEA RAW] " + linea)
 
-        # Limpiar caracteres raros
         linea = re.sub(r"[*_`]", "", linea).strip()
         partes = [p.strip() for p in linea.split("|")]
 
@@ -107,7 +119,7 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
     text  = Body.strip()
     print("[MSG] " + phone + ": " + text)
 
-    # ── Anti-duplicados: ignorar si el mismo mensaje llega dos veces en 30s ───
+    # ── Anti-duplicados ────────────────────────────────────────────
     if _is_duplicate(phone, text):
         print("[DUPLICADO] Ignorado: " + phone + " — " + text[:50])
         return PlainTextResponse("", status_code=200)
@@ -160,6 +172,21 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
         send_whatsapp(phone, reply)
         save_messages(phone, text, reply)
         alerta = ("🌿 CLIENTE NECESITA ASESOR\n"
+                  "Número: " + phone.replace("whatsapp:", "") + "\n"
+                  "Mensaje: " + text + "\n\n"
+                  "Cuando termines escribe:\n"
+                  "/bot-on " + phone.replace("whatsapp:", ""))
+        send_whatsapp(VENDEDOR, alerta)
+        return PlainTextResponse("", status_code=200)
+
+    # ── Campaña publicitaria → transferir directo al asesor ────────
+    if is_campaign_message(text):
+        print("[CAMPAÑA] Mensaje de campaña detectado para " + phone)
+        set_human_mode(phone, True)
+        reply = "¡Hola! Bienvenido/a a Longevité 🌿 Un asesor te atenderá en un momento."
+        send_whatsapp(phone, reply)
+        save_messages(phone, text, reply)
+        alerta = ("🎯 CLIENTE DE CAMPAÑA\n"
                   "Número: " + phone.replace("whatsapp:", "") + "\n"
                   "Mensaje: " + text + "\n\n"
                   "Cuando termines escribe:\n"
